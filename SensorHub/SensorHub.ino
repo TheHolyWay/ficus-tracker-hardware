@@ -1,4 +1,3 @@
-#include <Ticker.h>
 #include <ArduinoJson.h>
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -6,8 +5,11 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
+#include <RCSwitch.h>
 
 #include "FS.h"
+
+#include "receiver.h"
 
 #define CONFIG_FILE "/config.json"
 #define TEST_CONFIG_FILE "/test_config.json"
@@ -16,11 +18,10 @@
 ESP8266WiFiMulti WiFiMulti;
 ESP8266WebServer server(80);
 WiFiClient client;
-Ticker httpCaller;
 String serverAddr;
 String token;
-boolean flagToSentData = false;
 boolean ledState = false;
+extern RCSwitch mySwitch;
 
 class DataBundle {
   public:
@@ -48,17 +49,6 @@ void ledTurnTo(boolean state){
 void toggleLed(){
   ledState = !ledState;
   digitalWrite(LED_PIN,ledState?LOW:HIGH);
-}
-
-DataBundle produceSomeData(){
-    DataBundle data;
-
-    data.serial=13;
-    data.temperature=25+((float)(rand()%30))/10;
-    data.light=70+rand()%10;
-    data.soilMoisture=70+rand()%10;
-
-    return data;
 }
 
 String serializeDataToString(DataBundle data){
@@ -238,6 +228,7 @@ void handleNotFound() {
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
+  mySwitch.enableReceive(0);
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
 
@@ -290,8 +281,6 @@ void setup() {
     Serial.println("");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-
-    httpCaller.attach(10,madeSendDate);
   }else{
     Serial.println("Start access point...");
     WiFi.softAP("sensorHubAP");
@@ -312,21 +301,16 @@ void setup() {
 
 void loop() {
   server.handleClient();
-
-  if(flagToSentData){
-    flagToSentData = false;
-
-    if ((WiFiMulti.run() == WL_CONNECTED)) {
-     Serial.println("Try to send data");
-     
-     DataBundle data = produceSomeData();
-     sendData(data);
-    } else {
-      Serial.println("Wifi yet not connected");
-    }
-  }
+  recieveRCMessage();
 }
 
-void madeSendDate() {
-  flagToSentData=true;
+void onRecieveRCMessage(SensorsData &data){
+  DataBundle dataBundle;
+
+  dataBundle.serial=data.serial;
+  dataBundle.temperature=data.temparature;
+  dataBundle.light=data.light;
+  dataBundle.soilMoisture=data.moisture;
+
+  sendData(dataBundle);
 }
