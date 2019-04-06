@@ -11,6 +11,7 @@
 
 #define CONFIG_FILE "/config.json"
 #define TEST_CONFIG_FILE "/test_config.json"
+#define LED_PIN D4
 
 ESP8266WiFiMulti WiFiMulti;
 ESP8266WebServer server(80);
@@ -19,6 +20,7 @@ Ticker httpCaller;
 String serverAddr;
 String token;
 boolean flagToSentData = false;
+boolean ledState = false;
 
 class DataBundle {
   public:
@@ -37,6 +39,16 @@ class HubConfig{
     String token;
     String serverAddress;
 };
+
+void ledTurnTo(boolean state){
+  ledState = state;
+  digitalWrite(LED_PIN,ledState?LOW:HIGH);
+}
+
+void toggleLed(){
+  ledState = !ledState;
+  digitalWrite(LED_PIN,ledState?LOW:HIGH);
+}
 
 DataBundle produceSomeData(){
     DataBundle data;
@@ -64,6 +76,7 @@ String serializeDataToString(DataBundle data){
 }
 
 void sendData(DataBundle data){
+    ledTurnTo(false);
     HTTPClient http;
 
     Serial.print("[HTTP] begin...\n");
@@ -76,15 +89,16 @@ void sendData(DataBundle data){
       
       if (httpCode > 0) {
         // HTTP header has been send and Server response header has been handled
-        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+        Serial.printf("[HTTP] POST... code: %d\n", httpCode);
 
         // file found at server
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
           String payload = http.getString();
           Serial.println(payload);
+          ledTurnTo(true);
         }
       } else {
-        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
       }
 
       http.end();
@@ -223,7 +237,7 @@ void handleNotFound() {
 }
 
 void setup() {
-
+  pinMode(LED_PIN, OUTPUT);
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
 
@@ -259,14 +273,17 @@ void setup() {
     // Wait for connection
     int tryIterations = 0;
     while (WiFi.status() != WL_CONNECTED) {
+      toggleLed();
       delay(500);
       Serial.print(".");
       if(++tryIterations>20){
+        ledTurnTo(false);
         Serial.println("\nNot successful connect to WiFi network");
         rejectTestConfig();
         ESP.restart();
       }
     }
+    ledTurnTo(false);
 
     Serial.println("Successfully connected to WiFi network");
     
@@ -286,6 +303,8 @@ void setup() {
 
   if(config.isTestConfig && !pingServer(config.serverAddress)){
     rejectTestConfig();
+  }else{
+    ledTurnTo(true);
   }
   
   confirmTestConfig();
