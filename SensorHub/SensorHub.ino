@@ -13,7 +13,9 @@
 
 #define CONFIG_FILE "/config.json"
 #define TEST_CONFIG_FILE "/test_config.json"
+#define AP_MODE_FILE "/enable_ap_mode.lock"
 #define LED_PIN D4
+#define AP_MODE_BTN_PIN D2
 
 ESP8266WiFiMulti WiFiMulti;
 ESP8266WebServer server(80);
@@ -21,6 +23,7 @@ WiFiClient client;
 String serverAddr;
 String token;
 boolean ledState = false;
+boolean flagToReboot = false;
 extern RCSwitch mySwitch;
 
 class DataBundle {
@@ -207,7 +210,7 @@ void handleRequestConfig() {
   }else{
     storeHubConfig(deserializeHubConfig(server.arg("plain")));
     server.send(200, "plain/text", "OK");
-    ESP.reset();
+    flagToReboot=true;
   }
 }
 
@@ -226,8 +229,30 @@ void handleNotFound() {
   server.send(404, "text/plain", message);
 }
 
+bool checkForAPMode(){
+  if(SPIFFS.exists(AP_MODE_FILE)){
+    SPIFFS.remove(AP_MODE_FILE);
+    return true;
+  }else{
+    return false;
+  }
+}
+
+void switchToAPMode(){
+  Serial.println("Switching to AP mode");
+  File f = SPIFFS.open(AP_MODE_FILE,"w+");
+  if(f){
+    f.close();
+    ESP.restart();
+  }else{
+    Serial.println("Failed to create file");
+  }
+}
+
 void setup() {
   pinMode(LED_PIN, OUTPUT);
+  pinMode(AP_MODE_BTN_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(AP_MODE_BTN_PIN), switchToAPMode, RISING);
   mySwitch.enableReceive(0);
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
@@ -244,7 +269,7 @@ void setup() {
 
   SPIFFS.begin();
   HubConfig config = loadHubConfig();
-  if(config.loaded){
+  if(config.loaded && !checkForAPMode()){
     WiFi.mode(WIFI_STA);
     if(config.password.length()==0){
       WiFi.begin(config.ssid);
@@ -267,7 +292,7 @@ void setup() {
       toggleLed();
       delay(500);
       Serial.print(".");
-      if(++tryIterations>20){
+      if(++tryIterations>120){
         ledTurnTo(false);
         Serial.println("\nNot successful connect to WiFi network");
         rejectTestConfig();
@@ -302,6 +327,7 @@ void setup() {
 void loop() {
   server.handleClient();
   recieveRCMessage();
+  if(flagToReboot)ESP.restart();
 }
 
 void onRecieveRCMessage(SensorsData &data){
