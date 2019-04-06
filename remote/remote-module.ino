@@ -7,14 +7,14 @@
 
 #define WDTO_INFINITE 255
 #define SLEEP_PERIOD WDTO_8S
-#define SKIP_WDT_WAKEUPS 15 // x SLEEP_PERIOD + SLEEP_PERIOD
+#define SKIP_WDT_WAKEUPS 2 // x SLEEP_PERIOD + SLEEP_PERIOD
 
 #define MOISTURE_SENSOR_PIN A1 //pin P2
 #define LIGHT_SENSOR_PIN A2 //pin P4
 #define TEMPERATURE_SENSOR_PIN 3
 #define SENSORS_POWER_PIN 0
 
-#define SERIAL_NUM 0001
+#define SERIAL_NUM 001 //value from 1 to 999  
 
 #define SOIL_MOISTURE_SENSOR_ID 1
 #define LIGHT_SENSOR_ID 2
@@ -47,7 +47,7 @@ void loop() {
 }
 
 void process() {
-    digitalWrite(SENSORS_POWER_PIN, HIGH); //Enable sensors
+  digitalWrite(SENSORS_POWER_PIN, HIGH); //Enable sensors
   delay(10);
 
   long moistureValue = analogRead(MOISTURE_SENSOR_PIN) - 25; //-25 for use three numbers for value. For moisture we will never get value less that 200.
@@ -55,19 +55,14 @@ void process() {
   long temparature = temp() + 300; //temparature now is multiplied on 10 (for pass tenths in long).  +300 for negative values. We wanna transmit only positive values. Range from -30 to 70 will be avaulavle
 
   randomSeed(light + temparature);
-  long sessionId = random(0, 1000);
 
-  long message = (SERIAL_NUM * 1000) + sessionId; //welcome message (serial id + ransom session id)
-
+  long message = (SERIAL_NUM * 10000) + (SOIL_MOISTURE_SENSOR_ID * 1000) + moistureValue;
   mySwitch.send(message, 24);
 
-  message = (sessionId * 10000) + (SOIL_MOISTURE_SENSOR_ID * 1000) + moistureValue;
+  message = (SERIAL_NUM * 10000) + (LIGHT_SENSOR_ID * 1000) + light;
   mySwitch.send(message, 24);
 
-  message = (sessionId * 10000) + (LIGHT_SENSOR_ID * 1000) + light;
-  mySwitch.send(message, 24);
-
-  message = (sessionId * 10000) + (TEMPERATURE_SENSOR_PIN * 1000) + temparature;
+  message = (SERIAL_NUM * 10000) + (TEMPERATURE_SENSOR_PIN * 1000) + temparature;
   mySwitch.send(message, 24);
 
   digitalWrite(SENSORS_POWER_PIN, LOW); // Disable sensors
