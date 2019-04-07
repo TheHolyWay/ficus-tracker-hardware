@@ -16,6 +16,7 @@
 #define AP_MODE_FILE "/enable_ap_mode.lock"
 #define LED_PIN D4
 #define AP_MODE_BTN_PIN D2
+#define SERVER_INDEX_FILE "/index.html"
 
 ESP8266WiFiMulti WiFiMulti;
 ESP8266WebServer server(80);
@@ -208,13 +209,18 @@ void handleRequestConfig() {
   if(server.method() == HTTP_GET){
     server.send(200, "application/json", serializeHubConfig(loadHubConfig()));
   }else{
-    storeHubConfig(deserializeHubConfig(server.arg("plain")));
+    Serial.print("Received config :");
+    String configStr = server.arg("plain");
+    Serial.println(configStr);
+    storeHubConfig(deserializeHubConfig(configStr));
     server.send(200, "plain/text", "OK");
     flagToReboot=true;
   }
 }
 
 void handleNotFound() {
+  if(loadFromSpiffs(server.uri()))return;
+  
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -227,6 +233,18 @@ void handleNotFound() {
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
+}
+
+void handleServerRoot() {
+  File f = SPIFFS.open(SERVER_INDEX_FILE,"r");
+  if(f){
+    String contents = f.readString();
+    f.close();
+
+    server.send(200, "text/html", contents);
+  }else{
+    handleNotFound();
+  }
 }
 
 bool checkForAPMode(){
@@ -247,6 +265,25 @@ void switchToAPMode(){
   }else{
     Serial.println("Failed to create file");
   }
+}
+
+bool loadFromSpiffs(String path){
+  String dataType = "text/plain";
+  if(path.endsWith(".css")) dataType = "text/css";
+  else if(path.endsWith(".js")) dataType = "application/javascript";
+  
+  File dataFile = SPIFFS.open(path.c_str(), "r");
+
+  if(!dataFile){
+    Serial.print("Can't to open file: ");
+    Serial.println(path);
+    return false;
+  }
+  
+  server.streamFile(dataFile, dataType);
+  
+  dataFile.close();
+  return true;
 }
 
 void setup() {
@@ -312,9 +349,10 @@ void setup() {
   }
   
   server.on("/config", handleRequestConfig);
+  server.on("/", handleServerRoot);
   server.onNotFound(handleNotFound);
   server.begin();
-
+  
   if(config.isTestConfig && !pingServer(config.serverAddress)){
     rejectTestConfig();
   }else{

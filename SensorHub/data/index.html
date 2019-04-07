@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="./js/bootstrap.min.js"></script>
+  <script src="./js/jquery.min.js"></script>
+  <link rel="stylesheet" href="css/bootstrap.min.css">
+  <title>Configure Sensor HUB</title>
+  <script>
+    $(document).ready(function(){
+      $.ajax('/config')
+        .done(function(data){
+          $("#ssid").val(data.ssid);
+          $("#password").val(data.password);
+          $("#token").val(data.token);
+          $("#address").val(data.serverAddress);
+        });
+
+      $("#save-btn").click(function(){
+        var config={};
+
+        config.ssid = $("#ssid").val();
+        config.password = $("#password").val();
+        config.token = $("#token").val();
+        config.serverAddress = $("#address").val();
+
+        $.ajax({
+          url: "/config",
+          method: "POST",
+          dataType: "json",
+          data: JSON.stringify(config),
+		  contentType: 'application/json'
+        }).done(function(){
+          alert("Device have successfuly loaded configuration. It will be restarted to apply it.");
+        }).fail(function(){
+          alert("Configuration uppload have been failed! Please check connectivity.");
+        })
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <div class="form-group">
+      <label for="ssid">SSID:</label>
+      <input type="text" class="form-control" id="ssid">
+    </div>
+    <div class="form-group">
+      <label for="password">Password:</label>
+      <input type="text" class="form-control" id="password">
+    </div>
+    <div class="form-group">
+      <label for="token">Token:</label>
+      <input type="text" class="form-control" id="token">
+    </div>
+    <div class="form-group">
+      <label for="address">Server address:</label>
+      <input type="text" class="form-control" id="address">
+    </div>
+    <div class="form-group">
+      <button type="button" class="btn btn-primary" id="save-btn">Save config</button>
+    </div>
+  </div>
+</body>
+</html>
